@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, status
 from app.database import database
 from app.models.customers import Customer, CustomerCreate
+from app.services.id_number_gen import get_next_customer_number
 
 
 # Route festlegen
@@ -17,7 +18,7 @@ def create_customer(customer: CustomerCreate) -> Customer:
 
     customer_data = customer.model_dump()
 
-    customer_data["customer_number"] = "K-000001"
+    customer_data["customer_number"] = get_next_customer_number()
     customer_data["notes"] = []
     customer_data["created_at"] = now
     customer_data["updated_at"] = now
