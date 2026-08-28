@@ -6,6 +6,10 @@ import datetime
 class CustomerNoteCreate(BaseModel):
     note: str
 
+class NoteUpdate(BaseModel):
+    note: str
+    updated_at: datetime
+
 
 class CustomerNote(BaseModel):
     text: str
