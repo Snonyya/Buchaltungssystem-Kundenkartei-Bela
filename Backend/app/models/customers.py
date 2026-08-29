@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
-import datetime
+from datetime import datetime
 
 # Modelle für customer erstellen
 
 class CustomerNoteCreate(BaseModel):
-    note: str
+    text: str
 
 class NoteUpdate(BaseModel):
     note: str
@@ -20,9 +20,9 @@ class CustomerCreate(BaseModel):
     last_name: str
     street: str
     city: str
-    postalcode: str
-    note: str | None = None
-    service: str | None = None
+    postal_code: str
+    notes: str | None = None
+    service_type: str | None = None
     phone: str | None = None
     email: str | None = None
 
@@ -49,8 +49,8 @@ class CustomerUpdate(BaseModel):
     last_name: str | None = None
     street: str | None = None
     city: str | None = None
-    postalcode: str | None = None
+    postal_code: str | None = None
     note: str | None = None
-    service: str | None = None
+    service_type: str | None = None
     phone: str | None = None
     email: str | None = None

@@ -101,7 +101,7 @@ def update_customer(customer_id: str, customer_update: CustomerUpdate,) -> Custo
 
     update_data["updated_at"] = datetime.now(timezone.utc)
 
-    document = database.customer.find_one_and_update(
+    document = database.customers.find_one_and_update(
         {
             "_id":ObjectId(customer_id),
             "is_active":True,
@@ -122,22 +122,23 @@ def update_customer(customer_id: str, customer_update: CustomerUpdate,) -> Custo
 # Kunde "löschen" nicht richtig nur archivieren, mit is_active = False, der Kunde ist noch in der Datenbank, aber wird nicht mehr angezeigt
 @router.delete("/{customer_id}", response_model=Customer)
 def archive_customer(customer_id: str) -> Customer:
-    if not ObjectId.is_valid:
+    if not ObjectId.is_valid(customer_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden",)
 
-    document = database.customer.find_one_and_update(
+    document = database.customers.find_one_and_update(
         {
             "_id":ObjectId(customer_id),
             "is_active":True,
         },
         {
-            "$set": {"is_active":False}, "updated_at": datetime.now(timezone.utc),
+            "$set": {"is_active":False},
+            "updated_at": datetime.now(timezone.utc),
         },
         return_document=ReturnDocument.AFTER
     )
 
     if document is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, details="Kunde nicht gefunden oder bereits Archiviert")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden oder bereits Archiviert")
 
     return convert_customer(document)
 
@@ -145,7 +146,7 @@ def archive_customer(customer_id: str) -> Customer:
 # archivierter Kunde wird wieder reaktiviert, in dem is_active=True
 @router.patch("/{customer_id}/restore", response_model=Customer)
 def set_customer_active(customer_id: str) -> Customer:
-    if not ObjectId.is_valid:
+    if not ObjectId.is_valid(customer_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ungültige Kunden-id")
 
     document = database.customers.find_one_and_update(

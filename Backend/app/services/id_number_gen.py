@@ -15,6 +15,8 @@ def get_next_customer_number() -> str:
     return f"K-{counter['value']:06d}"
 
 
+
+# jedes Jahr wird "value" zurückgesetzt, dann werden neue nummer mit dem neuen jahr generiert
 def get_next_receipt_number(occured_at: datetime) -> str:
     year = occured_at.year
     counter = database.counters.find_one_and_update(
