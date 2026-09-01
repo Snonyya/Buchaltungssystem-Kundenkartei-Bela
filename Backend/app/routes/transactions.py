@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status
 
-from app.database import database
-from app.models.transaction import Transaction, TransactionCreate, PaymentMethod
-from app.services.id_number_gen import get_next_receipt_number
+from database import database
+from models.transaction import Transaction, TransactionCreate, PaymentMethod
+from services.id_number_gen import get_next_receipt_number
 
 
 router = APIRouter(
@@ -42,9 +42,9 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
     if payment_method is not None:
         query["payment_method"] = payment_method.value
 
-        documents = database.transaction.find(query).sort(
-            "orruced_at",
-            -1,
+    documents = database.transactions.find(query).sort(
+        "occurred_at",
+        -1,
         )
     return [
         conver_transaction(document)
@@ -54,7 +54,7 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
 
 @router.post("", response_model=Transaction, status_code=status.HTTP_201_CREATED)
 def create_transaction(transaction: TransactionCreate) -> Transaction:
-    if not ObjectId.is_valid:
+    if not ObjectId.is_valid(transaction.customer_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden")
 
     customer = database.customers.find_one(
@@ -69,7 +69,7 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
 
 
     now = datetime.now(timezone.utc)
-    occurred_at = transaction.occured_at or now
+    occurred_at = transaction.occurred_at or now
 
     transaction_data = transaction.model_dump()
     transaction_data["occurred_at"] = occurred_at
@@ -85,14 +85,14 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
     )
 
 
-router.get("/{transaction_id}", response_model=Transaction,)
+@router.get("/{transaction_id}", response_model=Transaction,)
 def get_transaction(transaction_id: str) -> Transaction:
-    if not ObjectId.is_valid:
+    if not ObjectId.is_valid(transaction_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden")
 
     document = database.transactions.find_one(
         {
-            "_id": transaction_id,
+            "_id": ObjectId(transaction_id),
         }
     )
 

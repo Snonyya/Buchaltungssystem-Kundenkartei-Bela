@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
-from app.database import database
-from app.models.dashboard import DashboardSummary
+from database import database
+from models.dashboard import DashboardSummary
 
 router = APIRouter(
     prefix="/dashboard",

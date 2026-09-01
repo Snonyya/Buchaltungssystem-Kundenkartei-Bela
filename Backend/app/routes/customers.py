@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, status, HTTPException
-from app.database import database
-from app.models.customers import Customer, CustomerCreate, CustomerUpdate, CustomerNoteCreate
-from app.services.id_number_gen import get_next_customer_number
+from database import database
+from models.customers import Customer, CustomerCreate, CustomerUpdate, CustomerNoteCreate
+from services.id_number_gen import get_next_customer_number
 from bson import ObjectId
 from pymongo import ReturnDocument
 
@@ -19,6 +19,7 @@ def convert_customer(single_customer: dict) -> Customer:
         id=str(single_customer["_id"]),
         **{key: value for key, value in single_customer.items() if key != "_id"},
     )
+
 
 # Neuen Customer nehmen und die restlichen Daten angeben -> dann in die Datenbank pushen. Respons ans Frontend muss "Customer" entsprechen
 @router.post("", response_model=Customer, status_code=status.HTTP_201_CREATED)
@@ -40,10 +41,32 @@ def create_customer(customer: CustomerCreate) -> Customer:
         **customer_data,
     )
 
-# sucht alle aktiven Kunden ("is_active": True), sortiert die nach dem Nachnamen und fügt die in ein einheitliches Format für das Frontend zusammen
+# sucht alle aktiven Kunden ("is_active": True), sortiert die nach dem Nachnamen und fügt die in ein einheitliches Format für das Frontend zusammen, Kunden mit Teilstrings-suchen d.h. nachnamen/vornamen suchen
 @router.get("", response_model=list[Customer])
-def list_customers() -> list[Customer]:
-    documents = database.customers.find({"is_active": True}).sort("last_name", 1)
+def list_customers(search: str | None = None, service: str | None = None) -> list[Customer]:
+    query: dict = {"is_active": True}
+
+    if search and service:
+        query["$or"] = [
+            {"first_name": {"$regex": search, "$options": "i"}},
+            {"last_name": {"$regex": search, "$options": "i"}},
+            {"service_type": {"regex": service, "$options": "i"}}
+        ]
+
+    if search and not service:
+        query["$or"] = [
+        {"first_name": {"$regex": search, "$options": "i"}},
+        {"last_name": {"$regex": search, "$options": "i"}},
+    ]
+
+    if service and not search:
+        query = [
+            {"service_type": {"regex": service, "$options": "i"}}
+    ]
+            
+        
+
+    documents = database.customers.find(query).sort("last_name", 1)
 
     return [
         convert_customer(document)
@@ -131,8 +154,7 @@ def archive_customer(customer_id: str) -> Customer:
             "is_active":True,
         },
         {
-            "$set": {"is_active":False},
-            "updated_at": datetime.now(timezone.utc),
+            "$set": {"is_active":False, "updated_at": datetime.now(timezone.utc)},
         },
         return_document=ReturnDocument.AFTER
     )
