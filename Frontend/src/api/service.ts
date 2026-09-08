@@ -57,3 +57,13 @@ export function archiveService(serviceId: string): Promise<Service> {
 export function fetchService(serviceId: string): Promise<Service> {
   return apiRequest<Service>(`/service/${serviceId}`)
 }
+
+export function fetchArchivedServices(): Promise<Service[]> {
+  return apiRequest<Service[]>("/service/archived")
+}
+
+export function restoreService(serviceId: string): Promise<Service>{
+    return apiRequest<Service>(`/service/${serviceId}/restore`, {
+        method: "PATCH"
+    })
+}

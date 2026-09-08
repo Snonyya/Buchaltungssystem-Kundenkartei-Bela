@@ -63,25 +63,13 @@ def create_customer(customer: CustomerCreate) -> Customer:
 
 # sucht alle aktiven Kunden ("is_active": True), sortiert die nach dem Nachnamen und fügt die in ein einheitliches Format für das Frontend zusammen, Kunden mit Teilstrings-suchen d.h. nachnamen/vornamen suchen
 @router.get("", response_model=list[Customer])
-def list_customers(search: str | None = None, service: str | None = None) -> list[Customer]:
+def list_customers(search: str | None = None) -> list[Customer]:
     query: dict = {"is_active": True}
 
-    if search and service:
+    if search:
         query["$or"] = [
             {"first_name": {"$regex": search, "$options": "i"}},
             {"last_name": {"$regex": search, "$options": "i"}},
-            {"service_id": {"regex": service, "$options": "i"}}
-        ]
-
-    if search and not service:
-        query["$or"] = [
-        {"first_name": {"$regex": search, "$options": "i"}},
-        {"last_name": {"$regex": search, "$options": "i"}},
-    ]
-
-    if service and not search:
-        query = [
-            {"service_id": {"regex": service, "$options": "i"}}
     ]
             
         

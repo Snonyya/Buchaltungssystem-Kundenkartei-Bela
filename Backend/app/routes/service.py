@@ -50,6 +50,21 @@ def create_service(service: ServiceCreate) -> Service:
     )
 
 
+@router.get("/archived", response_model=list[Service])
+def list_archived_services() -> list[Service]:
+    documents = database.services.find(
+        {
+            "is_active": False
+            }
+    ).sort("service_name", 1)
+
+    return [
+        convert_service(document)
+        for document in documents
+    ]
+
+
+
 @router.get("/{service_id}", response_model=Service)
 def getService(service_id) -> Service:
 
@@ -119,4 +134,27 @@ def delete_service(service_id:str) -> Service:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service nicht gefunden")
 
     return convert_service(document)
-    
+
+
+@router.patch("/{service_id}/restore", response_model=Service)
+def restore_service(service_id: str) -> Service:
+    if not ObjectId.is_valid(service_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service nicht gefunden")
+
+    document = database.services.find_one_and_update(
+        {
+            "_id": ObjectId(service_id),
+            "is_active": False,
+        },
+        {
+            "$set": {
+                "is_active": True,
+            },
+        },
+        return_document=ReturnDocument.AFTER    
+    )
+
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="keinen Service gefunden oder nicht archiviert")
+
+    return convert_service(document)

@@ -61,7 +61,6 @@ export type Customer = {
 
 export type CustomerFilter = {
     search?: string
-    service?: string
 }
 
 export function fetchCustomers(filters: CustomerFilter = {}): Promise<Customer[]>{
@@ -71,9 +70,6 @@ export function fetchCustomers(filters: CustomerFilter = {}): Promise<Customer[]
     query.set("search", filters.search)
     }
 
-    if (filters.service){
-        query.set("service", filters.service)
-    }
 
     const queryString = query.toString()
     const path = queryString
