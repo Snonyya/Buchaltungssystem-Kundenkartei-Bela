@@ -11,5 +11,5 @@ class DashboardSummary(BaseModel):
     cash_total_cents: int
     online_total_cents: int
     average_cents: float
-    lowest_transaction_cents: int
-    highest_transaction_cents: int
+    lowest_transaction_cents: int | None = None
+    highest_transaction_cents: int | None = None

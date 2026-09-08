@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from models.service import Service
 
 # Modelle für customer erstellen
 
@@ -23,7 +22,6 @@ class CustomerCreate(BaseModel):
     city: str
     postal_code: str
     notes: str | None = None
-    service_type: Service | None = None
     phone: str | None = None
     email: str | None = None
 
@@ -38,7 +36,6 @@ class Customer(BaseModel):
         city: str
         email: str | None = None
         phone: str | None = None
-        service_type: str | None = None
         notes: list[CustomerNote] = Field(default_factory=list)
         created_at: datetime
         updated_at: datetime
@@ -52,6 +49,5 @@ class CustomerUpdate(BaseModel):
     city: str | None = None
     postal_code: str | None = None
     note: str | None = None
-    service_type: str | None = None
     phone: str | None = None
     email: str | None = None

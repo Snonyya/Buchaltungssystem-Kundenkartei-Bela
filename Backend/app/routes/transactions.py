@@ -1,11 +1,10 @@
 from datetime import datetime, timezone
-
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status
-
-from database import database
-from models.transaction import Transaction, TransactionCreate, PaymentMethod
-from services.id_number_gen import get_next_receipt_number
+from pymongo import ReturnDocument
+from app.database import database
+from app.models.transaction import Transaction, TransactionCreate, PaymentMethod, TransactionCancel
+from app.services.id_number_gen import get_next_receipt_number
 
 
 router = APIRouter(
@@ -14,7 +13,7 @@ router = APIRouter(
 )
 
 
-def conver_transaction(single_transaction: dict) -> Transaction:
+def convert_transaction(single_transaction: dict) -> Transaction:
     return Transaction(
         id=str(single_transaction["_id"]),
         **{key: value for key, value in single_transaction.items() if key !="_id"},
@@ -22,10 +21,13 @@ def conver_transaction(single_transaction: dict) -> Transaction:
 
 
 @router.get("", response_model= list[Transaction])
-def list_all_transaction(customer_id: str | None = None, start: datetime | None = None, end: datetime | None = None, payment_method: PaymentMethod | None = None) -> list[Transaction]:
+def list_all_transaction(customer_id: str | None = None, start: datetime | None = None, end: datetime | None = None, payment_method: PaymentMethod | None = None, service_id:str | None = None) -> list[Transaction]:
     query = {
         "status": "booked",
     }
+
+    if service_id is not None:
+        query["service_id"] = service_id
 
     if customer_id is not None:
         query["customer_id"] = customer_id
@@ -47,7 +49,7 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
         -1,
         )
     return [
-        conver_transaction(document)
+        convert_transaction(document)
         for document in documents
     ]
 
@@ -69,9 +71,28 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
 
 
     now = datetime.now(timezone.utc)
+
+
+    if not ObjectId.is_valid(transaction.service_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dienstleistung nicht gefunden")
+
+
+    service = database.services.find_one(
+        {
+            "_id": ObjectId(transaction.service_id),
+            "is_active": True,
+         }
+    )
+
+    if service is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service nicht")
+
+    
     occurred_at = transaction.occurred_at or now
 
     transaction_data = transaction.model_dump()
+
+    transaction_data["service_name"] = service["service_name"]
     transaction_data["occurred_at"] = occurred_at
     transaction_data["receipt_number"] = get_next_receipt_number(occurred_at)
     transaction_data["created_at"] = now
@@ -84,6 +105,30 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
         **transaction_data
     )
 
+
+@router.patch("/{transaction_id}/cancel", response_model=Transaction)
+def cancel_transaction(transaction_id:str, cancellation:TransactionCancel) -> Transaction:
+    if not ObjectId.is_valid(transaction_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaktion nicht gefunden")
+
+    now = datetime.now(timezone.utc)
+
+    document = database.transactions.find_one_and_update(
+        {
+            "_id": ObjectId(transaction_id),
+            "status": "booked",
+        },
+        {
+            "$set": 
+            {
+                "cancellation_reason": cancellation.reason,
+                "cancelled_at": now,
+                "status": "cancelled",
+            }
+        },
+        return_document = ReturnDocument.AFTER
+    )
+    return convert_transaction(document)
 
 @router.get("/{transaction_id}", response_model=Transaction,)
 def get_transaction(transaction_id: str) -> Transaction:
@@ -99,4 +144,4 @@ def get_transaction(transaction_id: str) -> Transaction:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden oder Archiviert")
 
-    return conver_transaction(document)
+    return convert_transaction(document)

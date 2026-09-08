@@ -1,9 +1,8 @@
-from datetime import datetime, timezone
-from fastapi import APIRouter, status, HTTPException
-from database import database
-from models.service import Service, ServiceCreate, ServiceUpdate
 from bson import ObjectId
+from fastapi import APIRouter, HTTPException, status
 from pymongo import ReturnDocument
+from app.database import database
+from app.models.service import Service, ServiceCreate, ServiceUpdate
 
 
 router = APIRouter(
@@ -11,31 +10,35 @@ router = APIRouter(
     tags=["Service"],
 )
 
-def conver_service(single_service: dict) -> Service:
+def convert_service(document: dict) -> Service:
     return Service(
-        id=str(single_service["_id"]),
-        **{key: value for key, value in single_service.items() if key !="_id"},
+        id=str(document["_id"]),
+        **{key: value for key, value in document.items() if key != "_id"},
     )
 
 
-@router.get("", response_model=Service)
-def get_all_services() -> list[Service]:
-    query = [
+
+@router.get("", response_model=list[Service])
+def list_services() -> list[Service]:
+    documents = database.services.find(
+
         {
             "is_active": True
-        }
+            }
+
+    ).sort("service_name", 1)
+
+    return [
+        convert_service(document)
+        for document in documents
     ]
-
-    document = database.services.find(query).sort("service_name", 1)
-
-    return conver_service(document)
 
     
 
 @router.post("", response_model=Service, status_code = status.HTTP_201_CREATED)
 def create_service(service: ServiceCreate) -> Service:
 
-    service_data = service.model_dump()
+    service_data = service.model_dump(exclude_unset = True)
 
     service_data["is_active"] = True
 
@@ -47,6 +50,28 @@ def create_service(service: ServiceCreate) -> Service:
     )
 
 
+@router.get("/{service_id}", response_model=Service)
+def getService(service_id) -> Service:
+
+    if not ObjectId.is_valid(service_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service nicht gefunden")
+
+    document = database.services.find_one(
+
+        {
+            "_id": ObjectId(service_id),
+            "is_active": True,
+        },
+    )
+
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service konnte nicht gefunden werden")
+
+    return convert_service(document)
+
+
+
+
 @router.patch("/{service_id}", response_model=Service)
 def update_service(service_id, update_service: ServiceUpdate) -> Service:
 
@@ -55,7 +80,7 @@ def update_service(service_id, update_service: ServiceUpdate) -> Service:
 
     update_data = update_service.model_dump(exclude_unset = True)
 
-    if update_data is None:
+    if not update_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="keine Daten eingegeben")
 
     document = database.services.find_one_and_update(
@@ -71,7 +96,7 @@ def update_service(service_id, update_service: ServiceUpdate) -> Service:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="keine Daten eingegeben")
 
-    return conver_service(document)
+    return convert_service(document)
 
 
 
@@ -93,5 +118,5 @@ def delete_service(service_id:str) -> Service:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service nicht gefunden")
 
-    return conver_service(document)
+    return convert_service(document)
     

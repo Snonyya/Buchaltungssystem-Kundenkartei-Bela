@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, status, HTTPException
-from database import database
-from models.customers import Customer, CustomerCreate, CustomerUpdate, CustomerNoteCreate
-from services.id_number_gen import get_next_customer_number
+from app.database import database
+from app.models.customers import Customer, CustomerCreate, CustomerUpdate, CustomerNoteCreate
+from app.services.id_number_gen import get_next_customer_number
 from bson import ObjectId
 from pymongo import ReturnDocument
 
 
 # Route festlegen
 router = APIRouter(
-    prefix="/customers",
-    tags=["Customers"],
+    prefix="/customer",
+    tags=["Customer"],
 )
 
 # Die aus MongoDB mitgelieferte _id in id verwandeln, damit das Frontend damit arbeiten kann
@@ -24,6 +24,26 @@ def convert_customer(single_customer: dict) -> Customer:
 # Neuen Customer nehmen und die restlichen Daten angeben -> dann in die Datenbank pushen. Respons ans Frontend muss "Customer" entsprechen
 @router.post("", response_model=Customer, status_code=status.HTTP_201_CREATED)
 def create_customer(customer: CustomerCreate) -> Customer:
+    if customer.service_id is not None:
+        if not ObjectId.is_valid(customer.service_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dienstleistung nicht gefunden",
+            )
+
+        service = database.services.find_one(
+            {
+                "_id": ObjectId(customer.service_id),
+                "is_active": True,
+            }
+        )
+
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dienstleistung nicht gefunden oder archiviert",
+            )
+    
     now = datetime.now(timezone.utc)
 
     customer_data = customer.model_dump()
@@ -50,7 +70,7 @@ def list_customers(search: str | None = None, service: str | None = None) -> lis
         query["$or"] = [
             {"first_name": {"$regex": search, "$options": "i"}},
             {"last_name": {"$regex": search, "$options": "i"}},
-            {"service_type": {"regex": service, "$options": "i"}}
+            {"service_id": {"regex": service, "$options": "i"}}
         ]
 
     if search and not service:
@@ -61,7 +81,7 @@ def list_customers(search: str | None = None, service: str | None = None) -> lis
 
     if service and not search:
         query = [
-            {"service_type": {"regex": service, "$options": "i"}}
+            {"service_id": {"regex": service, "$options": "i"}}
     ]
             
         
@@ -118,6 +138,26 @@ def update_customer(customer_id: str, customer_update: CustomerUpdate,) -> Custo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden")
     
     update_data = customer_update.model_dump(exclude_unset=True)
+
+    if "service_id" in update_data and update_data["service_id"] is not None:
+        if not ObjectId.is_valid(update_data["service_id"]):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dienstleistung nicht gefunden",
+            )
+
+        service = database.services.find_one(
+         {
+                "_id": ObjectId(update_data["service_id"]),
+                "is_active": True,
+          }
+     )
+
+        if service is None:
+          raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Dienstleistung nicht gefunden oder archiviert",
+         )
 
     if not update_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="keine Daten zum aktualisieren übergeben")

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class ServiceCreate(BaseModel):
     service_name: str
-    service_description: str
+    service_description: str | None = None
     default_price_cents: int | None = None
 
 
@@ -12,7 +12,7 @@ class Service(BaseModel):
     service_name: str
     service_description: str
     default_price_cents: int | None = None
-    is_active: bool
+    is_active: bool = True
 
 
 class ServiceUpdate(BaseModel):

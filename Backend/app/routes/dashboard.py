@@ -1,7 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
-from database import database
-from models.dashboard import DashboardSummary
+from app.database import database
+from app.models.dashboard import DashboardSummary
 
 router = APIRouter(
     prefix="/dashboard",
@@ -56,7 +56,7 @@ def get_dashboard_summary(start: datetime, end: datetime) -> DashboardSummary:
         },
     ]
 
-    results =  list(database.transaction.aggregate(pipeline))
+    results =  list(database.transactions.aggregate(pipeline))
 
 # wenn es keine einträge für den eingegebenen zeitraum gibt, werden alle ausgaben auf null gesetzt
     if not results:

@@ -1,5 +1,5 @@
 from pymongo import ReturnDocument
-from database import database
+from app.database import database
 from datetime import datetime
 
 # Value der Kundennummer atomar erhöhen und damit dann die "customer_number" erzeugen.
