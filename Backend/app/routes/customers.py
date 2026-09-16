@@ -24,25 +24,6 @@ def convert_customer(single_customer: dict) -> Customer:
 # Neuen Customer nehmen und die restlichen Daten angeben -> dann in die Datenbank pushen. Respons ans Frontend muss "Customer" entsprechen
 @router.post("", response_model=Customer, status_code=status.HTTP_201_CREATED)
 def create_customer(customer: CustomerCreate) -> Customer:
-    if customer.service_id is not None:
-        if not ObjectId.is_valid(customer.service_id):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Dienstleistung nicht gefunden",
-            )
-
-        service = database.services.find_one(
-            {
-                "_id": ObjectId(customer.service_id),
-                "is_active": True,
-            }
-        )
-
-        if service is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Dienstleistung nicht gefunden oder archiviert",
-            )
     
     now = datetime.now(timezone.utc)
 
@@ -126,26 +107,6 @@ def update_customer(customer_id: str, customer_update: CustomerUpdate,) -> Custo
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden")
     
     update_data = customer_update.model_dump(exclude_unset=True)
-
-    if "service_id" in update_data and update_data["service_id"] is not None:
-        if not ObjectId.is_valid(update_data["service_id"]):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Dienstleistung nicht gefunden",
-            )
-
-        service = database.services.find_one(
-         {
-                "_id": ObjectId(update_data["service_id"]),
-                "is_active": True,
-          }
-     )
-
-        if service is None:
-          raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Dienstleistung nicht gefunden oder archiviert",
-         )
 
     if not update_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="keine Daten zum aktualisieren übergeben")

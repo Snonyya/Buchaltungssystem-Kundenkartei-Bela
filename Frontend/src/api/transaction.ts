@@ -1,6 +1,9 @@
 import {apiRequest} from "./client";
 
 
+export type TransactionStatus = "booked" | "cancelled" | "all"
+
+
 export type TransactionCreate = {
     customer_id: string
     amount_cents: number
@@ -18,17 +21,34 @@ export type TransactionCancel = {
 
 export type PaymentMethod = "cash" | "online"
 
+
+export type TransactionSortField =
+  | "occurred_at"
+  | "amount_cents"
+  | "receipt_number"
+  | "customer_name"
+  | "service_name"
+
+export type SortDirection = "asc" | "desc"
+
+
 export type TransactionFilters = {
   customer_id?: string
   start?: string
   end?: string
   payment_method?: PaymentMethod
   service_id?: string
+  status?: TransactionStatus
+  search?: string
+  sort_by?: TransactionSortField
+  sort_direction?: SortDirection
 }
 
 export type Transaction = {
     id: string
     customer_id: string
+    customer_name: string | null
+    customer_number: string | null
     amount_cents: number
     payment_method: PaymentMethod
     service_id: string
@@ -66,6 +86,22 @@ export function fetchTransactions(
 
   if (filters.service_id) {
     query.set("service_id", filters.service_id)
+  }
+
+    if (filters.status){
+    query.set("status", filters.status)
+  }
+
+  if (filters.search){
+    query.set("search", filters.search)
+  }
+
+  if (filters.sort_by){
+    query.set("sort_by", filters.sort_by)
+  }
+
+  if (filters.sort_direction){
+    query.set("sort_direction", filters.sort_direction)
   }
 
   const queryString = query.toString()

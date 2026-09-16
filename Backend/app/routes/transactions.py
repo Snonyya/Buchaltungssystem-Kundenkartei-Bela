@@ -5,6 +5,11 @@ from pymongo import ReturnDocument
 from app.database import database
 from app.models.transaction import Transaction, TransactionCreate, PaymentMethod, TransactionCancel
 from app.services.id_number_gen import get_next_receipt_number
+from typing import Literal
+from fastapi import APIRouter, HTTPException, Query, status
+import re
+from typing import Literal
+from app.models.settings import BusinessProfileInput, TaxationMode
 
 
 router = APIRouter(
@@ -21,10 +26,21 @@ def convert_transaction(single_transaction: dict) -> Transaction:
 
 
 @router.get("", response_model= list[Transaction])
-def list_all_transaction(customer_id: str | None = None, start: datetime | None = None, end: datetime | None = None, payment_method: PaymentMethod | None = None, service_id:str | None = None) -> list[Transaction]:
-    query = {
-        "status": "booked",
-    }
+def list_all_transaction(customer_id: str | None = None, start: datetime | None = None, end: datetime | None = None, payment_method: PaymentMethod | None = None, service_id:str | None = None, search: str | None = None,
+                         transaction_status: Literal["booked", "cancelled", "all"] = Query(
+                             default="booked",
+                             alias="status",
+                         ), sort_by: Literal[
+                             "occurred_at",
+                             "amount_cents",
+                             "receipt_number",
+                             "customer_name",
+                             "service_name",
+                         ] = "occurred_at", sort_direction: Literal["asc", "desc"] = "desc",) -> list[Transaction]:
+    query: dict = {}
+
+    if  transaction_status !="all":
+        query["status"] = transaction_status
 
     if service_id is not None:
         query["service_id"] = service_id
@@ -44,10 +60,21 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
     if payment_method is not None:
         query["payment_method"] = payment_method.value
 
+    if search and search.strip():
+        search_text = re.escape(search.strip())
+
+        query["$or"] = [
+            {"receipt_number": {"$regex": search_text, "$options": "i"}},
+            {"customer_name": {"$regex": search_text, "$options": "i"}},
+            {"customer_number": {"$regex": search_text, "$options": "i"}},
+            {"service_name": {"$regex": search_text, "$options": "i"}},
+        ]
+    sort_value = 1 if sort_direction == "asc" else -1
+
     documents = database.transactions.find(query).sort(
-        "occurred_at",
-        -1,
-        )
+        sort_by,
+        sort_value,
+    )
     return [
         convert_transaction(document)
         for document in documents
@@ -85,13 +112,31 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
     )
 
     if service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service nicht")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service nicht gefunden")
 
+    business_profile = database.business_settings.find_one(
+        {
+            "_id": "business_profile",
+        },
+    )
+
+    if business_profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profil nicht gefunden, hinterlege ein Business Profil in den Einstellungen")
+
+    business_profile_snapshot = BusinessProfileInput.model_validate(
+        {
+            key: value
+            for key, value in business_profile.items()
+            if key not in {"_id", "created_at", "updated_at"}
+        }
+    )
     
     occurred_at = transaction.occurred_at or now
 
     transaction_data = transaction.model_dump()
 
+    transaction_data["customer_name"] = (f"{customer['first_name']} {customer['last_name']}")
+    transaction_data["customer_number"] = customer["customer_number"]
     transaction_data["service_name"] = service["service_name"]
     transaction_data["occurred_at"] = occurred_at
     transaction_data["receipt_number"] = get_next_receipt_number(occurred_at)
@@ -104,6 +149,27 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
         id=str(result.inserted_id),
         **transaction_data
     )
+
+
+
+
+@router.get("/{transaction_id}", response_model=Transaction,)
+def get_transaction(transaction_id: str) -> Transaction:
+    if not ObjectId.is_valid(transaction_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Buchung nicht gefunden")
+
+    document = database.transactions.find_one(
+        {
+            "_id": ObjectId(transaction_id),
+        }
+    )
+
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Buchung nicht gefunden oder Archiviert")
+
+    return convert_transaction(document)
+
+
 
 
 @router.patch("/{transaction_id}/cancel", response_model=Transaction)
@@ -128,20 +194,4 @@ def cancel_transaction(transaction_id:str, cancellation:TransactionCancel) -> Tr
         },
         return_document = ReturnDocument.AFTER
     )
-    return convert_transaction(document)
-
-@router.get("/{transaction_id}", response_model=Transaction,)
-def get_transaction(transaction_id: str) -> Transaction:
-    if not ObjectId.is_valid(transaction_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden")
-
-    document = database.transactions.find_one(
-        {
-            "_id": ObjectId(transaction_id),
-        }
-    )
-
-    if document is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden oder Archiviert")
-
     return convert_transaction(document)
