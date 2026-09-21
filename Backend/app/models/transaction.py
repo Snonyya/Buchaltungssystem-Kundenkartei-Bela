@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
-from app.models.settings import BusinessProfileInput, TaxationMode
+from app.models.settings import BusinessProfileInput
 
 # modell für die Transaktionen
 
@@ -25,8 +25,6 @@ class Transaction(BaseModel):
     customer_name: str | None = None
     customer_number: str | None = None
     business_profile_snapshot: BusinessProfileInput | None = None
-    taxation_mode: TaxationMode | None = None
-    vat_rate_percent: int | None = None
     net_amount_cents: int | None = None
     tax_amount_cents: int | None = None
     amount_cents: int = Field(gt=0)

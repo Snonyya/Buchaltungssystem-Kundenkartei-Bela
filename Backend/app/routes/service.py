@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status
 from pymongo import ReturnDocument
 from app.database import database
 from app.models.service import Service, ServiceCreate, ServiceUpdate
+from app.services.audit_log import write_audit_log
 
 
 router = APIRouter(
@@ -43,6 +44,16 @@ def create_service(service: ServiceCreate) -> Service:
     service_data["is_active"] = True
 
     result = database.services.insert_one(service_data)
+
+    write_audit_log(
+        action="service.created",
+        entity_type="service",
+        entity_id=str(result.inserted_id),
+        summary=f"Dienstleistung {service_data['service_name']} erstellt",
+        details={
+            "default_price_cents": service_data["default_price_cents"],
+        },
+    )
 
     return Service(
         id=str(result.inserted_id),
@@ -111,6 +122,16 @@ def update_service(service_id, update_service: ServiceUpdate) -> Service:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="keine Daten eingegeben")
 
+    write_audit_log(
+        action="service.updated",
+        entity_type="service",
+        entity_id=str(document["_id"]),
+        summary=f"Dienstleistung {document['service_name']} bearbeitet",
+        details={
+            "changed_fields": list(update_data.keys()),
+        },
+    )
+
     return convert_service(document)
 
 
@@ -132,6 +153,13 @@ def delete_service(service_id:str) -> Service:
     )
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service nicht gefunden")
+
+    write_audit_log(
+        action="service.archived",
+        entity_type="service",
+        entity_id=str(document["_id"]),
+        summary=f"Dienstleistung {document['service_name']} archiviert",
+    )
 
     return convert_service(document)
 
@@ -157,4 +185,12 @@ def restore_service(service_id: str) -> Service:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="keinen Service gefunden oder nicht archiviert")
 
+
+    write_audit_log(
+        action="service.restored",
+        entity_type="service",
+        entity_id=str(document["_id"]),
+        summary=f"Dienstleistung {document['service_name']} wiederhergestellt",
+
+    )
     return convert_service(document)

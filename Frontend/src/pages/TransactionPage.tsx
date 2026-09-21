@@ -19,6 +19,7 @@ import {
   type BusinessProfile,
 } from "../api/settings"
 
+
 function getTodayGerman(): string {
   const today = new Date()
 
@@ -29,30 +30,65 @@ function getTodayGerman(): string {
   ].join(".")
 }
 
-function parseGermanDate(value: string): string | null {
-  const match = value.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/)
+function getTimeGerman(): string {
+  const time = new  Date()
 
-  if (!match) {
+  return [
+    String(time.getHours()).padStart(2, "0"),
+    String(time.getMinutes()).padStart(2, "0"),
+    String(time.getSeconds()).padStart(2, "0"),
+  ].join(":")
+}
+
+function parseGermanDateTime(
+  dateValue: string,
+  timeValue: string,
+): string | null {
+  const dateMatch = dateValue.trim().match(
+    /^(\d{2})\.(\d{2})\.(\d{4})$/,
+  )
+
+  const timeMatch = timeValue.trim().match(
+    /^(\d{2}):(\d{2})$/,
+  )
+
+  if (!dateMatch || !timeMatch) {
     return null
   }
 
-  const [, dayText, monthText, yearText] = match
+  const [, dayText, monthText, yearText] = dateMatch
+  const [, hourText, minuteText, secondsText] = timeMatch
+
   const day = Number(dayText)
   const month = Number(monthText)
   const year = Number(yearText)
+  const hours = Number(hourText)
+  const minutes = Number(minuteText)
+  const seconds = Number(secondsText)
 
-  const date = new Date(Date.UTC(year, month - 1, day, 12))
+  const localDate = new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes,
+    seconds,
+    0,
+  )
 
-  const isValidDate =
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+  const isValid =
+    localDate.getFullYear() === year &&
+    localDate.getMonth() === month - 1 &&
+    localDate.getDate() === day &&
+    localDate.getHours() === hours &&
+    localDate.getMinutes() === minutes
+    localDate.getSeconds() === seconds
 
-  if (!isValidDate) {
+  if (!isValid) {
     return null
   }
 
-  return `${yearText}-${monthText}-${dayText}T12:00:00Z`
+  return localDate.toISOString()
 }
 
 function parseEuroToCents(value: string): number | null {
@@ -79,6 +115,10 @@ function formatCentsAsInput(amountCents: number): string {
   return (amountCents / 100).toFixed(2).replace(".", ",")
 }
 
+function getCustomerLabel(customer: Customer): string {
+  return `${customer.customer_number} · ${customer.first_name} ${customer.last_name}`
+}
+
 export function TransactionPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [services, setServices] = useState<Service[]>([])
@@ -86,6 +126,7 @@ export function TransactionPage() {
   const [loadingError, setLoadingError] = useState<string | null>(null)
 
   const [customerId, setCustomerId] = useState("")
+  const [customerSearch, setCustomerSearch] = useState("")
   const [serviceId, setServiceId] = useState("")
   const [amountInput, setAmountInput] = useState("")
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash")
@@ -100,6 +141,7 @@ export function TransactionPage() {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
   const [transactionError, setTransactionError] = useState<string | null>(null)
   const [reloadTransactions, setReloadTransactions] = useState(0) 
+  const [occurredAtTime, setOccurredAtTime] = useState(getTimeGerman())
 
   const [listSearch, setListSearch] = useState("")
   const [listStatus, setListStatus] =
@@ -112,7 +154,7 @@ export function TransactionPage() {
   const [listEndDate, setListEndDate] = useState("")
 
   const [listSortBy, setListSortBy] =
-  useState<TransactionSortField>("occurred_at")
+  useState<TransactionSortField>("receipt_number")
 
   const [listSortDirection, setListSortDirection] =
   useState<SortDirection>("desc")
@@ -208,6 +250,7 @@ export function TransactionPage() {
     return undefined
   }
 
+
   return `${dateValue}T00:00:00Z`
 }
 
@@ -229,6 +272,15 @@ function getEndOfDay(dateValue: string): string | undefined {
   return nextDay.toISOString()
 }
 
+function handleCustomerSearchChange(value: string) {
+  setCustomerSearch(value)
+
+  const selectedCustomer = customers.find(
+    (customer) => getCustomerLabel(customer) === value,
+  )
+
+  setCustomerId(selectedCustomer?.id ?? "")
+}
   function resetForm() {
     setCustomerId("")
     setServiceId("")
@@ -236,10 +288,15 @@ function getEndOfDay(dateValue: string): string | undefined {
     setPaymentMethod("cash")
     setOccurredAt(getTodayGerman())
     setNote("")
+    setCustomerSearch("")
     setFormError(null)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (!customerId) {
+    setFormError("Bitte wähle einen Kunden aus der Vorschlagsliste aus.")
+    return
+  }
     event.preventDefault()
     setFormError(null)
     setCreatedTransaction(null)
@@ -251,7 +308,7 @@ function getEndOfDay(dateValue: string): string | undefined {
       return
     }
 
-    const occurredAtIso = parseGermanDate(occurredAt)
+    const occurredAtIso = parseGermanDateTime(occurredAt, occurredAtTime)
 
     if (!occurredAtIso) {
       setFormError("Bitte gib das Datum im Format TT.MM.JJJJ ein.")
@@ -325,6 +382,9 @@ function resetTransactionFilters() {
   setListSortBy("occurred_at")
   setListSortDirection("desc")
 }
+
+const receiptBusinessProfile =
+  receiptToPrint?.business_profile_snapshot ?? businessProfile
 
   return (
     <>
@@ -452,21 +512,20 @@ function resetTransactionFilters() {
           <form className="transaction-form" onSubmit={handleSubmit}>
             <label>
               Kunde *
-              <select
-                required
-                value={customerId}
-                onChange={(event) => setCustomerId(event.target.value)}
-              >
-                <option value="">Kunden auswählen …</option>
+            <input
+              required
+              list="customer-options"
+              placeholder="Kundennummer oder Name eingeben …"
+              value={customerSearch}
+              onChange={(event) => handleCustomerSearchChange(event.target.value)}
+            />
 
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.customer_number} · {customer.first_name}{" "}
-                    {customer.last_name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <datalist id="customer-options">
+              {customers.map((customer) => (
+                <option key={customer.id} value={getCustomerLabel(customer)} />
+              ))}
+            </datalist>
+          </label>
 
             <label>
               Dienstleistung *
@@ -518,6 +577,16 @@ function resetTransactionFilters() {
                 onChange={(event) => setOccurredAt(event.target.value)}
               />
             </label>
+
+                <label>
+                Uhrzeit *
+                  <input
+                  required
+                  type="time"
+                  value={occurredAtTime}
+                  onChange={(event) => setOccurredAtTime(event.target.value)}
+                />
+              </label>
 
             <label className="transaction-note-field">
               Notiz
@@ -585,12 +654,12 @@ function resetTransactionFilters() {
               <div>
                 <h3>{transaction.service_name || "Dienstleistung"}</h3>
                 {transaction.customer_name && (
-  <p className="transaction-customer-name">
-    {transaction.customer_name}
-    {transaction.customer_number &&
-      ` · ${transaction.customer_number}`}
-  </p>
-)}
+                <p className="transaction-customer-name">
+                  {transaction.customer_name}
+                  {transaction.customer_number &&
+                 ` · ${transaction.customer_number}`}
+              </p>
+              )}
 
                 <p>
                   {new Intl.DateTimeFormat("de-DE", {
@@ -656,46 +725,46 @@ function resetTransactionFilters() {
   <section className="panel receipt-preview" id="printable-receipt">
     <div className="receipt-header">
   <div className="receipt-company">
-    {businessProfile ? (
+    {receiptBusinessProfile ? (
       <>
         <strong className="receipt-company-name">
-          {businessProfile.legal_name}
+          {receiptBusinessProfile.legal_name}
         </strong>
 
-        {businessProfile.owner_name && (
-          <span>{businessProfile.owner_name}</span>
+        {receiptBusinessProfile.owner_name && (
+          <span>{receiptBusinessProfile.owner_name}</span>
         )}
 
-        <span>{businessProfile.street}</span>
+        <span>{receiptBusinessProfile.street}</span>
         <span>
-          {businessProfile.postal_code} {businessProfile.city}
+          {receiptBusinessProfile.postal_code} {receiptBusinessProfile.city}
         </span>
-        <span>{businessProfile.country}</span>
+        <span>{receiptBusinessProfile.country}</span>
 
-        {(businessProfile.phone || businessProfile.email) && (
+        {(receiptBusinessProfile.phone || receiptBusinessProfile.email) && (
           <span className="receipt-company-contact">
-            {[businessProfile.phone, businessProfile.email]
+            {[receiptBusinessProfile.phone, receiptBusinessProfile.email]
               .filter(Boolean)
               .join(" · ")}
           </span>
         )}
 
-        {(businessProfile.tax_number || businessProfile.vat_id) && (
+        {(receiptBusinessProfile.tax_number || receiptBusinessProfile.vat_id) && (
           <span className="receipt-company-tax">
-            {businessProfile.tax_number &&
-              `Steuernummer: ${businessProfile.tax_number}`}
+            {receiptBusinessProfile.tax_number &&
+              `Steuernummer: ${receiptBusinessProfile.tax_number}`}
 
-            {businessProfile.tax_number && businessProfile.vat_id && " · "}
+            {receiptBusinessProfile.tax_number && receiptBusinessProfile.vat_id && " · "}
 
-            {businessProfile.vat_id &&
-              `USt-IdNr.: ${businessProfile.vat_id}`}
+            {receiptBusinessProfile.vat_id &&
+              `USt-IdNr.: ${receiptBusinessProfile.vat_id}`}
           </span>
         )}
 
-        {businessProfile.taxation_mode === "small_business" &&
-          businessProfile.small_business_notice && (
+        {receiptBusinessProfile.taxation_mode === "small_business" &&
+          receiptBusinessProfile.small_business_notice && (
             <span className="receipt-tax-notice">
-              {businessProfile.small_business_notice}
+              {receiptBusinessProfile.small_business_notice}
             </span>
           )}
       </>
@@ -779,6 +848,37 @@ function resetTransactionFilters() {
         <p>{receiptToPrint.note}</p>
       </div>
     )}
+
+    {receiptToPrint.net_amount_cents !== null &&
+  receiptToPrint.tax_amount_cents !== null && (
+    <div className="receipt-tax-summary">
+      <div>
+        <span>Nettobetrag</span>
+        <strong>
+          {new Intl.NumberFormat("de-DE", {
+            style: "currency",
+            currency: "EUR",
+          }).format(receiptToPrint.net_amount_cents / 100)}
+        </strong>
+      </div>
+
+      {receiptBusinessProfile?.taxation_mode === "standard" && (
+        <div>
+          <span>
+            Umsatzsteuer
+            {receiptBusinessProfile.vat_rate_percent !== null &&
+              ` (${receiptBusinessProfile.vat_rate_percent} %)`}
+          </span>
+          <strong>
+            {new Intl.NumberFormat("de-DE", {
+              style: "currency",
+              currency: "EUR",
+            }).format(receiptToPrint.tax_amount_cents / 100)}
+          </strong>
+        </div>
+      )}
+    </div>
+  )}
 
     <div className="receipt-total">
       <span>Gesamtbetrag</span>

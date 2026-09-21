@@ -1251,3 +1251,22 @@
     width: 100%;
   }
 }
+
+.receipt-tax-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  border-top: 1px solid #eaecf0;
+  padding-top: 16px;
+}
+
+.receipt-tax-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #475467;
+}
+
+.receipt-tax-summary strong {
+  color: #1d2939;
+}

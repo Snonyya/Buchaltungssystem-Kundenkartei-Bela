@@ -1,5 +1,6 @@
 import {apiRequest} from "./client";
 
+import type { BusinessProfileInput } from "./settings"
 
 export type TransactionStatus = "booked" | "cancelled" | "all"
 
@@ -49,6 +50,9 @@ export type Transaction = {
     customer_id: string
     customer_name: string | null
     customer_number: string | null
+    business_profile_snapshot: BusinessProfileInput | null
+    net_amount_cents: number | null
+    tax_amount_cents: number | null
     amount_cents: number
     payment_method: PaymentMethod
     service_id: string

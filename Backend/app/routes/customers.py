@@ -5,6 +5,7 @@ from app.models.customers import Customer, CustomerCreate, CustomerUpdate, Custo
 from app.services.id_number_gen import get_next_customer_number
 from bson import ObjectId
 from pymongo import ReturnDocument
+from app.services.audit_log import write_audit_log
 
 
 # Route festlegen
@@ -36,6 +37,19 @@ def create_customer(customer: CustomerCreate) -> Customer:
     customer_data["is_active"] = True
 
     result = database.customers.insert_one(customer_data)
+
+    write_audit_log(
+        action="customer.created",
+        entity_type="customer",
+        entity_id=str(result.inserted_id),
+        summary=(
+            f"Kunde {customer_data['first_name']} "
+            f"{customer_data['last_name']} erstellt"
+        ),
+        details={
+            "customer_number": customer_data["customer_number"],
+        },
+    )
 
     return Customer(
         id=str(result.inserted_id),
@@ -127,6 +141,21 @@ def update_customer(customer_id: str, customer_update: CustomerUpdate,) -> Custo
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kein Kunde gefunden")
 
+    write_audit_log(
+        action= "customer.updated",
+        entity_type = "customer",
+        entity_id =str(document["_id"]),
+        summary=(
+            f"Kunde {document['first_name']} "
+            f"{document['last_name']} bearbeitet"
+        ),
+        details={
+            "changed_fields": list(update_data.keys()),
+            "customer_number": document["customer_number"],
+        }
+    )
+    
+
     return convert_customer(document)
 
 
@@ -150,6 +179,20 @@ def archive_customer(customer_id: str) -> Customer:
 
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden oder bereits Archiviert")
+
+    
+    write_audit_log(
+        action="customer.archived",
+        entity_type="customer",
+        entity_id=str(document["_id"]),
+        summary=(
+            f"Kunde {document['first_name']} "
+            f"{document['last_name']} archiviert"
+        ),
+        details={
+            "customer_number": document["customer_number"],
+        },
+    )
 
     return convert_customer(document)
 
@@ -177,6 +220,19 @@ def set_customer_active(customer_id: str) -> Customer:
 
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kunde nicht gefunden oder nicht archiviert")
+
+    write_audit_log(
+        action="customer.restored",
+        entity_type="customer",
+        entity_id=str(document["_id"]),
+        summary=(
+            f"Kunde {document['first_name']} "
+            f"{document['last_name']} wiederhergestellt"
+        ),
+        details={
+            "customer_number": document["customer_number"],
+        },
+    )
 
     return convert_customer(document)
 
@@ -214,6 +270,19 @@ def add_customer_note(customer_id: str, note: CustomerNoteCreate,) -> Customer:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Kunde nicht gefunden oder archiviert",
         )
+
+    write_audit_log(
+        action="customer.note_added",
+        entity_type="customer",
+        entity_id=str(document["_id"]),
+        summary=(
+            f"Notiz für {document['first_name']} "
+            f"{document['last_name']} hinzugefügt"
+        ),
+        details={
+            "customer_number": document["customer_number"],
+        },
+    )
 
     return convert_customer(document)
 

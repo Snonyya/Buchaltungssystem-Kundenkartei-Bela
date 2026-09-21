@@ -7,6 +7,12 @@ import {
   type TaxationMode,
 } from "../api/settings"
 
+import {
+  fetchAuditLogs,
+  type AuditLog,
+} from "../api/audit"
+
+
 const emptyProfile: BusinessProfileInput = {
   legal_name: "",
   owner_name: null,
@@ -35,6 +41,10 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [showAuditLogs, setShowAuditLogs] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false)
+  const [auditError, setAuditError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadProfile() {
@@ -111,6 +121,25 @@ export function SettingsPage() {
     }
   }
 
+  async function loadAuditLogs() {
+  setShowAuditLogs(true)
+  setIsLoadingAudit(true)
+  setAuditError(null)
+
+  try {
+    const logs = await fetchAuditLogs(500)
+    setAuditLogs(logs)
+  } catch (error) {
+    setAuditError(
+      error instanceof Error
+        ? error.message
+        : "Das Aktivitätsprotokoll konnte nicht geladen werden.",
+    )
+  } finally {
+    setIsLoadingAudit(false)
+  }
+}
+
   if (isLoading) {
     return <p>Einstellungen werden geladen …</p>
   }
@@ -128,9 +157,28 @@ export function SettingsPage() {
         <h3>Angaben für spätere Belege</h3>
         <p>
           Diese Daten werden zentral gespeichert und später auf interne
-          Buchungsbelege sowie mögliche Rechnungs- und TSE-Funktionen übernommen.
+          Buchungsbelege übernommen.
         </p>
       </section>
+
+      <section className="panel settings-intro">
+        <h3>Erweiterte Verwaltung</h3>
+          <p>
+            Das Aktivitätsprotokoll zeigt wichtige Änderungen an Buchungen,
+            Kunden, Dienstleistungen und Unternehmenseinstellungen.
+            </p>
+
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void loadAuditLogs()}
+              disabled={isLoadingAudit}
+              >
+              {isLoadingAudit
+                ? "Protokoll wird geladen …"
+                : "Aktivitätsprotokoll anzeigen"}
+            </button>
+        </section>
 
       <form className="settings-form panel" onSubmit={handleSubmit}>
         <div className="panel-heading">
@@ -347,6 +395,60 @@ export function SettingsPage() {
           </button>
         </div>
       </form>
+      {showAuditLogs && (
+  <section className="panel">
+    <div className="panel-heading">
+      <div>
+        <h3>Aktivitätsprotokoll</h3>
+        <p>Die neuesten Änderungen in der Anwendung.</p>
+      </div>
+
+      <button
+        className="secondary-button"
+        type="button"
+        onClick={() => void loadAuditLogs()}
+        disabled={isLoadingAudit}
+      >
+        Aktualisieren
+      </button>
+    </div>
+
+    {auditError && <p className="error-message">{auditError}</p>}
+
+    {!isLoadingAudit && !auditError && auditLogs.length === 0 && (
+      <p>Noch keine protokollierten Änderungen vorhanden.</p>
+    )}
+
+    {!isLoadingAudit && auditLogs.length > 0 && (
+      <div className="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Zeitpunkt</th>
+              <th>Aktion</th>
+              <th>Beschreibung</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {auditLogs.map((auditLog) => (
+              <tr key={auditLog.id}>
+                <td>
+                  {new Intl.DateTimeFormat("de-DE", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(auditLog.occurred_at))}
+                </td>
+                <td>{auditLog.action}</td>
+                <td>{auditLog.summary}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+)}
     </>
   )
 }

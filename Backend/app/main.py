@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.database import close_mongodb_connection, connect_to_mongodb
-from app.routes import customers, transactions, dashboard, service, settings
+from app.routes import audit, customers, transactions, dashboard, service, settings
 from fastapi.middleware.cors import CORSMiddleware
+
 
 # FastApi (backend server) aufrufen + MongoDB verbindung herstellen bei beenden des Backends sauber schließen
 
@@ -34,6 +35,8 @@ app.include_router(transactions.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(service.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")
+
 
 @app.get("/", tags=["System"])
 async def health_check() -> dict[str, str]:

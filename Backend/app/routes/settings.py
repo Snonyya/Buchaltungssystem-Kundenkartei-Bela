@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from pymongo import ReturnDocument
 from app.database import database
 from app.models.settings import BusinessProfile, BusinessProfileInput
+from app.services.audit_log import write_audit_log
 
 router = APIRouter(
     prefix="/settings",
@@ -48,6 +49,16 @@ def save_business_profile(profile: BusinessProfileInput) -> BusinessProfile:
         },
         upsert=True,
         return_document=ReturnDocument.AFTER,
+    )
+
+    write_audit_log(
+        action="business_profile.saved",
+        entity_type="business_profile",
+        entity_id="business_profile",
+        summary="Unternehmensdaten gespeichert",
+        details={
+            "taxation_mode": profile.taxation_mode.value,
+        },
     )
 
     return convert_business_profile(document)

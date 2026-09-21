@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 import re
 from typing import Literal
 from app.models.settings import BusinessProfileInput, TaxationMode
+from app.services.audit_log import write_audit_log
 
 
 router = APIRouter(
@@ -36,7 +37,7 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
                              "receipt_number",
                              "customer_name",
                              "service_name",
-                         ] = "occurred_at", sort_direction: Literal["asc", "desc"] = "desc",) -> list[Transaction]:
+                         ] = "receipt_number", sort_direction: Literal["asc", "desc"] = "desc",) -> list[Transaction]:
     query: dict = {}
 
     if  transaction_status !="all":
@@ -130,11 +131,36 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
             if key not in {"_id", "created_at", "updated_at"}
         }
     )
-    
+
+    gross_amount_cents = transaction.amount_cents
+
+    if business_profile_snapshot.taxation_mode == TaxationMode.STANDARD:
+        vat_rate_percent = business_profile_snapshot.vat_rate_percent
+
+        if vat_rate_percent is None:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Bitte hinterlege eine Umsatzsteuer")
+
+        divisor = 100 + vat_rate_percent
+
+        tax_amount_cents = (
+            gross_amount_cents * vat_rate_percent + divisor // 2
+        ) // divisor
+
+        net_amount_cents = gross_amount_cents - tax_amount_cents
+
+    else:
+        vat_rate_percent = None
+        net_amount_cents = gross_amount_cents
+        tax_amount_cents = 0
+
     occurred_at = transaction.occurred_at or now
 
     transaction_data = transaction.model_dump()
 
+
+    transaction_data["business_profile_snapshot"] = business_profile_snapshot.model_dump(mode="json")
+    transaction_data["net_amount_cents"] = net_amount_cents
+    transaction_data["tax_amount_cents"] = tax_amount_cents
     transaction_data["customer_name"] = (f"{customer['first_name']} {customer['last_name']}")
     transaction_data["customer_number"] = customer["customer_number"]
     transaction_data["service_name"] = service["service_name"]
@@ -145,8 +171,23 @@ def create_transaction(transaction: TransactionCreate) -> Transaction:
 
     result = database.transactions.insert_one(transaction_data)
 
+    transaction_id = str(result.inserted_id)
+
+    write_audit_log(
+        action = "transaction.created",
+        entity_type="transaction",
+        entity_id=transaction_id,
+        summary= f"Buchung {transaction_id} erstellt",
+        details= {"receipt_number": transaction_data["receipt_number"],
+                  "customer_id": transaction_data["customer_id"],
+                  "service_id": transaction_data["service_id"],
+                  "amount_cents": transaction_data["amount_cents"],
+                  "payment_method": business_profile_snapshot.taxation_mode,
+                  },
+    )
+
     return Transaction(
-        id=str(result.inserted_id),
+        id=str(transaction_id),
         **transaction_data
     )
 
@@ -194,4 +235,19 @@ def cancel_transaction(transaction_id:str, cancellation:TransactionCancel) -> Tr
         },
         return_document = ReturnDocument.AFTER
     )
+
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Buchung nicht gefunden")
+
+    write_audit_log(
+        action = "transaction.cancelled",
+        entity_type="transaction",
+        entity_id=str (document["_id"]),
+        summary=f"Buchung {document['receipt_number']} storniert",
+        details= {"receipt_number": document["receipt_number"],
+                  "cancellation_reason": document["cancellation_reason"],
+                  "cancelled_at": document["cancelled_at"],
+                  },
+    )
+
     return convert_transaction(document)

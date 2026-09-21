@@ -1,5 +1,6 @@
 import { apiRequest } from "./client"
 
+
 export type TaxationMode = "standard" | "small_business"
 
 export type BusinessProfileInput = {
