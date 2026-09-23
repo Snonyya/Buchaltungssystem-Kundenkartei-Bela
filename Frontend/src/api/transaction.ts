@@ -29,6 +29,7 @@ export type TransactionSortField =
   | "receipt_number"
   | "customer_name"
   | "service_name"
+  | "created_at"
 
 export type SortDirection = "asc" | "desc"
 

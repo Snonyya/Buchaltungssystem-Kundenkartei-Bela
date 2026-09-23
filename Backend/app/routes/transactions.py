@@ -37,6 +37,7 @@ def list_all_transaction(customer_id: str | None = None, start: datetime | None 
                              "receipt_number",
                              "customer_name",
                              "service_name",
+                             "created_at",
                          ] = "receipt_number", sort_direction: Literal["asc", "desc"] = "desc",) -> list[Transaction]:
     query: dict = {}
 

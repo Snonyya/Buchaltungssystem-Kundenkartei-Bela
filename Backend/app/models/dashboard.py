@@ -13,3 +13,8 @@ class DashboardSummary(BaseModel):
     average_cents: float
     lowest_transaction_cents: int | None = None
     highest_transaction_cents: int | None = None
+    expense_count: int
+    expense_total_cents: int
+    expense_cash_total_cents: int
+    expense_online_total_cents: int
+    profit_loss_cents: int

@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react"
+import { downloadCsv } from "../utils/csv"
 
 import {
   fetchTransactions,
@@ -54,6 +55,7 @@ export function CustomersPage() {
   const [customerTransactions, setCustomerTransactions] = useState<Transaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
   const [transactionError, setTransactionError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     async function loadCustomers() {
@@ -294,9 +296,81 @@ useEffect(() => {
     }
   }
 
+
+
   void loadCustomerTransactions()
 }, [selectedCustomer?.id])
 
+async function handleExportCustomers() {
+  setIsExporting(true)
+  setActionError(null)
+
+  try {
+    const [activeCustomers, archivedCustomers] = await Promise.all([
+      fetchCustomers(),
+      getArchivedCustomers(),
+    ])
+
+    const allCustomers = [...activeCustomers, ...archivedCustomers]
+
+    const rows = allCustomers.map((customer) => [
+      customer.customer_number,
+      customer.first_name,
+      customer.last_name,
+      customer.street,
+      customer.postal_code,
+      customer.city,
+      customer.phone ?? "",
+      customer.email ?? "",
+      customer.is_active ? "Aktiv" : "Archiviert",
+      new Intl.DateTimeFormat("de-DE", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(new Date(customer.created_at)),
+      new Intl.DateTimeFormat("de-DE", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(new Date(customer.updated_at)),
+      customer.notes
+        .map(
+          (note) =>
+            `${new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "short",
+            }).format(new Date(note.created_at))}: ${note.text}`,
+        )
+        .join(" | "),
+    ])
+
+    const datePart = new Date().toISOString().slice(0, 10)
+
+    downloadCsv(
+      `bela-kunden-${datePart}.csv`,
+      [
+        "Kundennummer",
+        "Vorname",
+        "Nachname",
+        "Straße und Hausnummer",
+        "PLZ",
+        "Ort",
+        "Telefon",
+        "E-Mail",
+        "Status",
+        "Angelegt am",
+        "Zuletzt geändert",
+        "Notizen",
+      ],
+      rows,
+    )
+  } catch (error) {
+    setActionError(
+      error instanceof Error
+        ? error.message
+        : "Der Kundenexport konnte nicht erstellt werden.",
+    )
+  } finally {
+    setIsExporting(false)
+  }
+}
   return (
     <>
       <header className="page-header">
@@ -310,6 +384,14 @@ useEffect(() => {
             + Kunde anlegen
           </button>
         )}
+        <button
+          className="secondary-button"
+            type="button"
+              onClick={() => void handleExportCustomers()}
+              disabled={isExporting}
+          >
+            {isExporting ? "Export wird erstellt …" : "Kunden als CSV exportieren"}
+          </button>
       </header>
 
       <div className="customer-toolbar">

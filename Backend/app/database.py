@@ -21,10 +21,24 @@ if not MongoUrl:
 client = MongoClient(MongoUrl, serverSelectionTimeoutMS=5_000)
 database: Database = client[DatabaseName]
 
+def create_database_index() -> None:
+    database.customers.create_index(
+        "customer_number",
+        unique=True,
+        name="unique_customer_number",
+    )
+
+    database.transactions.create_index(
+        "receipt_number",
+        unique=True,
+        name="unique_receipt_number",
+    )
+
 
 def connect_to_mongodb() -> None:
     """Check that MongoDB can be reached when the backend starts."""
     client.admin.command("ping")
+    create_database_index()
     print(f"Connected to MongoDB database: {DatabaseName}")
 
 

@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react"
 
 import { fetchCustomers, type Customer } from "../api/customer"
 import { fetchServices, type Service } from "../api/service"
+import { downloadCsv } from "../utils/csv"
 
 import {
   cancelTransaction,
@@ -49,7 +50,7 @@ function parseGermanDateTime(
   )
 
   const timeMatch = timeValue.trim().match(
-    /^(\d{2}):(\d{2})$/,
+    /^(\d{2}):(\d{2}):(\d{2})$/,
   )
 
   if (!dateMatch || !timeMatch) {
@@ -81,7 +82,7 @@ function parseGermanDateTime(
     localDate.getMonth() === month - 1 &&
     localDate.getDate() === day &&
     localDate.getHours() === hours &&
-    localDate.getMinutes() === minutes
+    localDate.getMinutes() === minutes &&
     localDate.getSeconds() === seconds
 
   if (!isValid) {
@@ -379,9 +380,52 @@ function resetTransactionFilters() {
   setListPaymentMethod("all")
   setListStartDate("")
   setListEndDate("")
-  setListSortBy("occurred_at")
+  setListSortBy("receipt_number")
   setListSortDirection("desc")
 }
+
+
+
+function handleExportTransactions() {
+  const rows = transactions.map((transaction) => [
+    transaction.receipt_number,
+    new Intl.DateTimeFormat("de-DE", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(transaction.occurred_at)),
+    transaction.customer_number ?? "",
+    transaction.customer_name ?? "",
+    transaction.service_name ?? "",
+    transaction.payment_method === "cash" ? "Bar" : "Online",
+    new Intl.NumberFormat("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(transaction.amount_cents / 100),
+    transaction.status === "booked" ? "Gebucht" : "Storniert",
+    transaction.note ?? "",
+    transaction.cancellation_reason ?? "",
+  ])
+
+  const datePart = new Date().toISOString().slice(0, 10)
+
+  downloadCsv(
+    `bela-einnahmen-${datePart}.csv`,
+    [
+      "Belegnummer",
+      "Leistungszeitpunkt",
+      "Kundennummer",
+      "Kunde",
+      "Dienstleistung",
+      "Zahlungsart",
+      "Betrag (EUR)",
+      "Status",
+      "Notiz",
+      "Stornogrund",
+    ],
+    rows,
+  )
+}
+
 
 const receiptBusinessProfile =
   receiptToPrint?.business_profile_snapshot ?? businessProfile
@@ -416,6 +460,14 @@ const receiptBusinessProfile =
 
       <section className="panel">
         <div className="panel-heading">
+          <button
+          className="secondary-button"
+            type="button"
+           onClick={handleExportTransactions}
+            disabled={transactions.length === 0}
+          >
+            CSV exportieren
+          </button>
           <div>
             <h3>Neue Einnahme</h3>
             <p>Alle mit Stern markierten Angaben sind erforderlich.</p>
@@ -478,11 +530,12 @@ const receiptBusinessProfile =
       setListSortBy(event.target.value as TransactionSortField)
     }
   >
-    <option value="occurred_at">Nach Datum</option>
+    <option value="occurred_at">Nach Leistungszeitpunkt</option>
     <option value="amount_cents">Nach Betrag</option>
     <option value="receipt_number">Nach Belegnummer</option>
     <option value="customer_name">Nach Kunde</option>
     <option value="service_name">Nach Dienstleistung</option>
+    <option value= "created_at">Nach Erfassung</option>
   </select>
 
   <select
@@ -663,7 +716,8 @@ const receiptBusinessProfile =
 
                 <p>
                   {new Intl.DateTimeFormat("de-DE", {
-                    dateStyle: "medium",
+                    dateStyle: "short",
+                    timeStyle: "short"
                   }).format(new Date(transaction.occurred_at))}
                   {" · "}
                   {transaction.payment_method === "cash" ? "Bar" : "Online"}
@@ -830,6 +884,7 @@ const receiptBusinessProfile =
         <strong>
           {new Intl.DateTimeFormat("de-DE", {
             dateStyle: "short",
+            timeStyle: "short"
           }).format(new Date(receiptToPrint.occurred_at))}
         </strong>
       </div>

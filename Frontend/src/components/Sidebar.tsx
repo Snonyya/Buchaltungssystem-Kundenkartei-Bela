@@ -4,6 +4,7 @@ export type Page =
   | "transaction"
   | "services"
   | "settings"
+  | "expenses"
 
 type SidebarProps = {
   activePage: Page
@@ -16,6 +17,7 @@ const navigationItems: { page: Page; label: string }[] = [
   { page: "transaction", label: "Einnahme erfassen" },
   { page: "services", label: "Dienstleistungen" },
   { page: "settings", label: "Einstellungen" },
+  { page: "expenses", label: "Ausgaben" },
 ]
 
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {

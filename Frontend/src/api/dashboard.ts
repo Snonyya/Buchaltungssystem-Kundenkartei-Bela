@@ -11,6 +11,11 @@ export type DashboardSummary = {
     average_cents: number
     lowest_transaction_cents?: number | null
     highest_transaction_cents?: number | null
+    expense_count: number
+    expense_total_cents: number
+    expense_cash_total_cents: number
+    expense_online_total_cents: number
+    profit_loss_cents: number
 }
 
 export function fetchDashboardSummary(start: string, end: string): Promise<DashboardSummary>{

@@ -6,7 +6,8 @@ import { CustomersPage } from "./pages/CustomerPage"
 import Dashboard from "./pages/Dashboard"
 import { ServicesPage } from "./pages/ServicePage"
 import { TransactionPage } from "./pages/TransactionPage"
-import { SettingsPage } from "./pages/settingsPage"
+import { SettingsPage } from "./pages/SettingsPage"
+import { ExpensePage } from "./pages/ExpensePage"
 
 function App() {
   const [activePage, setActivePage] = useState<Page>("dashboard")
@@ -26,6 +27,7 @@ function App() {
         {activePage === "transaction" && <TransactionPage />}
         {activePage === "services" && <ServicesPage />}
         {activePage === "settings" && <SettingsPage />}
+        {activePage === "expenses" && <ExpensePage />}
       </main>
     </div>
   )
