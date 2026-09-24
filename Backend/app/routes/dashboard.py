@@ -28,9 +28,7 @@ def get_dashboard_summary(start: datetime, end: datetime) -> DashboardSummary:
         {
             "$match": {
                 "status": "booked",
-                "occurred_at": {
                    **date_filter
-                },
             }
         },
         {

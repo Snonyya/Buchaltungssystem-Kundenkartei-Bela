@@ -140,6 +140,10 @@ export function SettingsPage() {
   }
 }
 
+  function printAuditLogs() {
+    window.print()
+}
+
   if (isLoading) {
     return <p>Einstellungen werden geladen …</p>
   }
@@ -396,22 +400,53 @@ export function SettingsPage() {
         </div>
       </form>
       {showAuditLogs && (
-  <section className="panel">
-    <div className="panel-heading">
-      <div>
-        <h3>Aktivitätsprotokoll</h3>
-        <p>Die neuesten Änderungen in der Anwendung.</p>
-      </div>
+    <section
+      className="panel audit-log-panel"
+      id="printable-audit-log"
+    >
+    <div className="panel-heading audit-screen-heading">
+  <div>
+    <h3>Aktivitätsprotokoll</h3>
+    <p>Die neuesten Änderungen in der Anwendung.</p>
+  </div>
 
-      <button
-        className="secondary-button"
-        type="button"
-        onClick={() => void loadAuditLogs()}
-        disabled={isLoadingAudit}
-      >
-        Aktualisieren
-      </button>
-    </div>
+  <div className="audit-action-bar">
+    <button
+      className="secondary-button"
+      type="button"
+      onClick={() => void loadAuditLogs()}
+      disabled={isLoadingAudit}
+    >
+      Aktualisieren
+    </button>
+
+    <button
+      className="primary-button"
+      type="button"
+      onClick={printAuditLogs}
+      disabled={auditLogs.length === 0}
+    >
+      Drucken
+    </button>
+  </div>
+</div>
+
+<div className="audit-print-header">
+  <p className="eyebrow">Bela Buchhaltung</p>
+  <h2>Aktivitätsprotokoll</h2>
+
+  <p>
+    {profile.legal_name || "Unternehmen nicht hinterlegt"}
+  </p>
+
+  <p>
+    Erstellt am{" "}
+    {new Intl.DateTimeFormat("de-DE", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date())}
+  </p>
+</div>
 
     {auditError && <p className="error-message">{auditError}</p>}
 

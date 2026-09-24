@@ -706,6 +706,15 @@ const receiptBusinessProfile =
 
               <div>
                 <h3>{transaction.service_name || "Dienstleistung"}</h3>
+                <span
+  className={`status-badge ${
+    transaction.status === "booked"
+      ? "status-badge-booked"
+      : "status-badge-cancelled"
+  }`}
+>
+  {transaction.status === "booked" ? "Gebucht" : "Storniert"}
+</span>
                 {transaction.customer_name && (
                 <p className="transaction-customer-name">
                   {transaction.customer_name}

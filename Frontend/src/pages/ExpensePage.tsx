@@ -5,8 +5,12 @@ import {
   createExpense,
   fetchExpenses,
   type Expense,
+  type ExpenseListStatus,
+  type ExpenseSortField,
+  type SortDirection,
 } from "../api/expense"
 import type { PaymentMethod } from "../api/transaction"
+import { downloadCsv } from "../utils/csv"
 
 
 function getTodayGerman(): string {
@@ -128,6 +132,24 @@ export function ExpensePage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [reloadKey, setReloadKey] = useState(0)
 
+  const [listSearch, setListSearch] = useState("")
+  const [listStatus, setListStatus] =
+  useState<ExpenseListStatus>("all")
+
+  const [listPaymentMethod, setListPaymentMethod] =
+  useState<PaymentMethod | "all">("all")
+
+  const [listCategory, setListCategory] = useState("")
+  const [listVendor, setListVendor] = useState("")
+  const [listStartDate, setListStartDate] = useState("")
+  const [listEndDate, setListEndDate] = useState("")
+
+  const [listSortBy, setListSortBy] =
+  useState<ExpenseSortField>("occurred_at")
+
+  const [listSortDirection, setListSortDirection] =
+  useState<SortDirection>("desc")
+
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -140,9 +162,21 @@ export function ExpensePage() {
 
       try {
         const loadedExpenses = await fetchExpenses({
-          status: "all",
-          sort_by: "occurred_at",
-          sort_direction: "desc",
+          status: listStatus,
+          search: listSearch.trim() || undefined,
+          payment_method:
+          listPaymentMethod === "all"
+              ? undefined
+              : listPaymentMethod,
+          category: 
+          listCategory.trim() === "all"
+            ? undefined
+            :listCategory,
+            vendor: listVendor.trim() || undefined,
+          start: getStartOfDay(listStartDate),
+          end: getEndOfDay(listEndDate),
+          sort_by: listSortBy,
+          sort_direction: listSortDirection,
         })
 
         setExpenses(loadedExpenses)
@@ -158,7 +192,18 @@ export function ExpensePage() {
     }
 
     void loadExpenses()
-  }, [reloadKey])
+  }, [
+    reloadKey,
+    listSearch,
+    listStatus,
+    listPaymentMethod,
+    listCategory,
+    listVendor,
+    listStartDate,
+    listEndDate,
+    listSortBy,
+    listSortDirection,
+  ])
 
   function resetForm() {
     setAmountInput("")
@@ -251,6 +296,79 @@ export function ExpensePage() {
     }
   }
 
+  function getStartOfDay(dateValue: string): string | undefined {
+  if (!dateValue) {
+    return undefined
+  }
+
+  return `${dateValue}T00:00:00Z`
+}
+
+function getEndOfDay(dateValue: string): string | undefined {
+  if (!dateValue) {
+    return undefined
+  }
+
+  const [yearText, monthText, dayText] = dateValue.split("-")
+
+  const nextDay = new Date(
+    Date.UTC(
+      Number(yearText),
+      Number(monthText) - 1,
+      Number(dayText) + 1,
+    ),
+  )
+
+  return nextDay.toISOString()
+}
+
+function resetListFilters() {
+  setListSearch("")
+  setListStatus("all")
+  setListPaymentMethod("all")
+  setListCategory("all")
+  setListVendor("")
+  setListStartDate("")
+  setListEndDate("")
+  setListSortBy("occurred_at")
+  setListSortDirection("desc")
+}
+
+function handleExportExpenses() {
+  const rows = expenses.map((expense) => [
+    formatDateTime(expense.occurred_at),
+    expense.category,
+    expense.vendor ?? "",
+    expense.payment_method === "cash" ? "Bar" : "Online",
+    new Intl.NumberFormat("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(expense.amount_cents / 100),
+    expense.status === "booked" ? "Gebucht" : "Storniert",
+    expense.receipt_reference ?? "",
+    expense.note ?? "",
+    expense.cancellation_reason ?? "",
+  ])
+
+  const datePart = new Date().toISOString().slice(0, 10)
+
+  downloadCsv(
+    `bela-ausgaben-${datePart}.csv`,
+    [
+      "Ausgabenzeitpunkt",
+      "Kategorie",
+      "Empfänger",
+      "Zahlungsart",
+      "Betrag (EUR)",
+      "Status",
+      "Rechnungs-/Belegnummer",
+      "Notiz",
+      "Stornogrund",
+    ],
+    rows,
+  )
+}
+
   return (
     <>
       <header className="page-header">
@@ -267,6 +385,118 @@ export function ExpensePage() {
             <p>Erfasste Ausgaben können später storniert, aber nicht gelöscht werden.</p>
           </div>
         </div>
+        <div className="transaction-filter-bar">
+  <input
+    className="transaction-search"
+    type="search"
+    placeholder="Kategorie, Empfänger, Referenz oder Notiz suchen …"
+    value={listSearch}
+    onChange={(event) => setListSearch(event.target.value)}
+  />
+
+  <select
+    value={listStatus}
+    onChange={(event) =>
+      setListStatus(event.target.value as ExpenseListStatus)
+    }
+  >
+    <option value="all">Alle Status</option>
+    <option value="booked">Nur gebucht</option>
+    <option value="cancelled">Nur storniert</option>
+  </select>
+
+  <select
+    value={listPaymentMethod}
+    onChange={(event) =>
+      setListPaymentMethod(
+        event.target.value as PaymentMethod | "all",
+      )
+    }
+  >
+    <option value="all">Bar und Online</option>
+    <option value="cash">Nur Bar</option>
+    <option value="online">Nur Online</option>
+  </select>
+
+  <select
+    value={listCategory}
+    onChange={(event) => setListCategory(event.target.value)}
+    >
+      <option value="all">Kategorie</option>
+      <option value="Material">Material</option>
+      <option value="Software">Software</option>
+      <option value="Miete">Miete</option>
+      <option value="Telefon & Internet">Telefon & Internet</option>
+      <option value="Fahrtkosten">Fahrtkosten</option>
+      <option value="Versicherung">Versicherung</option>
+      <option value="Marketing">Marketing</option>
+      <option value="Sonstiges">Sonstige</option>
+    </select>
+
+  <input
+    placeholder="Empfänger filtern"
+    value={listVendor}
+    onChange={(event) => setListVendor(event.target.value)}
+  />
+
+  <label>
+    Von
+    <input
+      type="date"
+      value={listStartDate}
+      onChange={(event) => setListStartDate(event.target.value)}
+    />
+  </label>
+
+  <label>
+    Bis
+    <input
+      type="date"
+      value={listEndDate}
+      onChange={(event) => setListEndDate(event.target.value)}
+    />
+  </label>
+
+  <select
+    value={listSortBy}
+    onChange={(event) =>
+      setListSortBy(event.target.value as ExpenseSortField)
+    }
+  >
+    <option value="occurred_at">Nach Ausgabendatum</option>
+    <option value="created_at">Zuletzt erfasst</option>
+    <option value="amount_cents">Nach Betrag</option>
+    <option value="category">Nach Kategorie</option>
+    <option value="vendor">Nach Empfänger</option>
+  </select>
+
+  <select
+    value={listSortDirection}
+    onChange={(event) =>
+      setListSortDirection(event.target.value as SortDirection)
+    }
+  >
+    <option value="desc">Absteigend</option>
+    <option value="asc">Aufsteigend</option>
+  </select>
+</div>
+
+<button
+  className="secondary-button"
+  type="button"
+  onClick={resetListFilters}
+>
+  Filter zurücksetzen
+</button>
+
+<button
+  className="secondary-button"
+  type="button"
+  onClick={handleExportExpenses}
+  disabled={expenses.length === 0}
+>
+  CSV exportieren
+</button>
 
         <form className="transaction-form" onSubmit={handleSubmit}>
           <label>
@@ -408,12 +638,21 @@ export function ExpensePage() {
         {!isLoading && !listError && expenses.length > 0 && (
           <div className="transaction-list">
             {expenses.map((expense) => (
-              <article className="transaction-item" key={expense.id}>
+              <article className="transaction-item expense-item" key={expense.id}>
                 <div className="transaction-main-info">
                   <div className="transaction-icon">−</div>
 
                   <div>
                     <h3>{expense.category}</h3>
+                    <span
+  className={`status-badge ${
+    expense.status === "booked"
+      ? "status-badge-booked"
+      : "status-badge-cancelled"
+  }`}
+>
+  {expense.status === "booked" ? "Gebucht" : "Storniert"}
+</span>
 
                     {expense.vendor && (
                       <p className="transaction-customer-name">
