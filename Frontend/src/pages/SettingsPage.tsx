@@ -165,7 +165,7 @@ export function SettingsPage() {
         </p>
       </section>
 
-      <section className="panel settings-intro">
+      <section className="panel settings-intro settings-admin-panel">
         <h3>Erweiterte Verwaltung</h3>
           <p>
             Das Aktivitätsprotokoll zeigt wichtige Änderungen an Buchungen,
